@@ -1,121 +1,108 @@
-# Git和Github基本操作手册
-### 1.git 安装及默认设置
-安装 git
-在 linux 下直接使用命令：
+# 与数据库连接的代码实例(Express 对话 MongoDB)
+如何在 Express 应用和 MongoDB 数据库之间进行通信是本节课程要解决的问题。
+### 安装 Mongoose 包
 
-- sudo apt-get install git
-windows 下百度 gitbash ，下载安装即可。
+通过 mongoose npm 包，让 Express 应用和 MongoDB 建立连接
 
-mac 下
+```js
+npm install --save mongoose
+```
+### 1.确保有数据
+req.table.title
+### 2.通过 Mongoose 提供的connect() 方法连接到运行在本地的 react-express-api MongoDB 数据库。
+加入如下代码，判断连接是否成功：
+```js
+mongoose.connection('mongo://xxx')
+db.on('')
+db.once('',function(){
+  console.log('success!')
+  })
+```
 
-- brew install git
-基本配置
-配置个人的用户名称和电子邮件地址：
+     这里的 mongoose.connection 会映射到数据库 react-express-api，若此时 MongoDB 数据库没有启动，则运行本项目的话，在命令行中会报告错误信息：
+```
+{ [MongoError: failed to connect to server [localhost:27017] on first connect]
+  name: 'MongoError',
+  message: 'failed to connect to server [localhost:27017] on first connect' }
+  ```
+  参考文档 [Mongoose入门](http://mongoosejs.com/docs/index.html)
+### 3.创建Schema
+在models/post.js
+```js
+var mongoose = require('mongoose');
+var Schema = mongoose.Schema;
+```
 
-- git config --global user.name "newming"
-- git config --global user.email "977527479@qq.com"
-可以查看已有的配置信息
-- git config --list
-### 2.工作流程
-克隆 Git 仓库作为工作目录（或者自己新建一个工作目录并初始化为Git仓库）。
-增加资源及修改文件。
-提交修改。
-如果他人修改了代码，可以更新资源。
-### 3.基本操作命令
- - git init
- - mkdir demo && cd demo
- - git init
-通过创建 demo 文件夹，git init 初始化，新建一个仓库。
+导入 mongoose 功能模块以及调用它提供的 Schema() 接口创建一个新的 schema，每个 schema 会映射为 MongoDB 数据库中的一个 collection（集合），同时还能定义所映射集合包含的字段，以及字段的类型等规范。下面代码就创建了一个名为 PostSchema 的 schema, 并规定所映射的集合将包含三个字段：category、title 和 content，并且每个字段只能存储字符串类型的数据，其中 title 字段中存储的数据不能为空。
 
-- git clone
-如果在 github 上已经有了仓库，可以直接通过 git clone 将项目 clone 到本地。
+```js
+const PostSchema = new Schema(
+  {
+    category: { type: String },
+    title: { type: String, required: true },
+    content: { type: String }
+  },
+  { timestamps: true }
+);
+```
+选项 timestamps 的值设置为 true，则自动给所映射集合添加 createdAt 和 updatedAt 两个字段。
 
-- git clone [仓库地址]
-- git diff
-查看做了哪些修改。按 q 退出。
 
-- git add
-- git add 可以将文件添加到缓存去，获得 Git 的跟踪。
 
-- touch a.html
-- git add a.html
-也可以通过加参数，将所有的文件添加到缓存区。下面的三种方式效果相同。
+### 4.创建model
+虽然定义了一个 schema，但是 Mongoose 还不知道这个 schema 到底映射成数据库中的哪个集合，所以还得把一个 schema 转换成一个 model 之后，根据 model 的名字，Mongoose 会自动查找到这个 schema 在数据库中对应的集合。
 
-- git add .
-- git add -A
-- git add *
-- git status
-- git status 可以查看当前版本库各个文件的状态。
+最后再添加代码
+```js
+module.exports = mongoose.model('Post', PostSchema);
+```
+通过 Mongoose 的 model() 方法把一个 schema 编译成一个 model，一个 model 实例会对应映射集合中的一条记录，这个 model() 方法的第一个参数 Post 则是映射集合名字的单数形式，所以 PostSchema 映射集合的名字是 posts。上述代码还把构建成的 Post Model 导出供外部其它文件使用。
 
-- git status
-- git commit
-- git commit 将缓存区内容添加到仓库中
+### 5.导入 Post model
+现在 posts 数据集合虽然已经有模有样了，但是若没有数据存入 posts 数据集合中的话，本项目所使用的数据库 curl 中是不存在 posts 集合的，所以我们接下来要做的工作就是构建一条 post 记录并存入数据库，这样 posts 集合就会真正存在了。
 
-- git commit -m '版本留言，尽量写的语义话'
-- git log
-查看提交记录。
+### 6.实例化 Post model ，得到post这个对象
+打开文件 index.js, 添加代码：
+```js
+var Post = require('./models/post');
 
-- git reset
-取消已经缓存的内容。
+db.once('open', function() {
+  var post = new Post({title: 'mongoose usage'});
+  post.save(function(err){
+    if(err) console.log(err);
+  })
+  console.log('success!');
+});
+```
+首先导入 Post model，然后创建一个新的 model 实例 post，其对应 posts 集合中的一条记录，最后数据保存到数据库。
 
-- git reset --hard HEAD
-也可以通过版本号回滚
+注意：因为使用了异步操作方法 save()，导致在终端报告警告信息：
+```
+Mongoose: mpromise (mongoose's default promise library) is deprecated, plug in your own promise library
+```
+解决办法是在连接 MongoDB 数据库 mongoose.connect(...); 之前，添加一行代码：
 
-- git reset --hard [版本号]
-- git rm
-- git rm 命令把一个文件删除，并把它从git的仓库管理系统中移除。
+mongoose.Promise = global.Promise;
 
-- git rm readme.md
-- git checkout
-取消对某个文件的修改，通过 git status 查看状态，然后执行 git checkout
+### 7.保存post 到数据库
 
-- git checkout 文件名
-### 4.推送代码
-首先，要在 github 上新建仓库，然后 clone 下来。
+## 重定向 redirect
+```js
+app.get('/', function(req, res) {
+  res.redirect('http://www.baidu.com')
+  //重定向到百度
+        });
+```
+(重定向到一个网站，浏览器自动发起第二次请求，跳到该网址)
 
-- git push
-*首次推送*
-- git push -u origin master
-*之后可以省略参数*
-- git push
-如果没有通过 clone 现有仓库，而是直接在本地 git init 的仓库的话，需要先添加远程仓库地址。
+[strkingly](strkingly.com)
+[wordpress](http://wordpress.com)
 
-*为这个仓库添加一个远程地址*
-- git remote add origin [你的github上的仓库地址]
-但是这里还有个问题，就是每次 push 都需要输入用户名和密码，很麻烦。这里需要设置下 ssh 。
 
-- 设置 public key
-首先需要在本地机器上生成 key。执行
-
-- ssh-keygen
-这时，会在 ~/.ssh/ 文件夹之下生成一对 ssh key ，包括一个 public key 和一个 private key 。（如果是windows用户，这个文件一般会在这里：C:\Users\Administrator.ssh）
-
-- 复制 public key
-
-- cat  ~/.ssh/id_rsa.pub
-将拷贝的 public key 添加在github账户上：
-
-- 右上角点击头像-> 点击settings-> 点击SSH KEYS-> 点击ADD SSH KEYS-> 将获取的public key粘贴于此
-### 5.分支操作
-    创建新分支
-
-- git branch [yourbranch]
-切换分支
-
-- git checkout [yourbranch]
-或者直接创建一个分支，并且切换过去
-
-- git checkout -b [yourbranch]
-删除分支
-
-- git branch -d [yourbranch]
-推送分支
-
-- git push origin [yourbranch]
-### 6.分支更新及合并
-    拉取主分支上的更新
-
-- git pull origin master
-合并其他分支代码
-
-- git merge [otherbranch]
+### 错误
+1.Cannot read property 'title' of undefined
+    title: req.body.title
+    指的是body未定义
+解决方法：
+  app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({ extended: false }))
